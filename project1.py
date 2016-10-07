@@ -2,10 +2,8 @@
 
 import socket as s
 from urlparse import urlparse
-
-fileName= "working on it"
-HOST = hostpath("working on it")[0]
-PATH = hostpath("working on it")[1]
+import argparse 
+import sys
 
 def network():
 	text = ""
@@ -52,8 +50,21 @@ def continuerqt(host,path,date,lastStop):
 
 
 connection=connect(HOST,PORT)
-
-
 with open(fileName, "wb") as file:
 	file.write(content)
 	
+if len(sys.argv) ==4:
+	URL = sys.argv[-1]
+	HOST,PATH = hostpath(URL)
+	fileName = sys.argv[2]
+	PORT= getPort(URL)
+	connection = connect()
+	header = downloadrqt(HOST,PATH,True)
+	connection.send(header)
+	buffer=network()
+	fileName, content = buffer.split('\r\n\r\n')
+
+	with open(outDirectory +  fileName, "wb") as file:
+		file.write(content)
+	
+	socket.close()
