@@ -62,7 +62,7 @@ if len(sys.argv) ==4:
 	header = downloadrqt(HOST,PATH,True)
 	connection.send(header)
 	buffer=network()
-	fileName, content = buffer.split('\r\n\r\n')
+	content = buffer.split('\r\n\r\n')
 
 	with open(outDirectory +  fileName, "wb") as file:
 		file.write(content)
