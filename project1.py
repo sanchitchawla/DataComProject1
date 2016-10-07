@@ -49,22 +49,23 @@ def continuerqt(host,path,date,lastStop):
 	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "If-Range: " + date + "Range: " + "bytes=" + lastStop + "-" + "\r\n\r\n"
 
 
-connection=connect(HOST,PORT)
-with open(fileName, "wb") as file:
-	file.write(content)
-	
-if len(sys.argv) ==4:
+if len(sys.argv) ==4 and sys.argv[1]= "-o" or len(sys.argv) ==4 and sys.argv[-3]= "-c":
 	URL = sys.argv[-1]
-	HOST,PATH = hostpath(URL)
+	urled = hostpath(URL)
+	HOST = urled[0]
+	PATH = urled[1]
+	if urled.scheme =="https":
+		print "Sorry we don't support https, yet"
+		return 0
 	fileName = sys.argv[2]
 	PORT= getPort(URL)
 	connection = connect()
 	header = downloadrqt(HOST,PATH,True)
 	connection.send(header)
 	buffer=network()
-	content = buffer.split('\r\n\r\n')
+	wtv,content = buffer.split('\r\n\r\n')
 
-	with open(outDirectory +  fileName, "wb") as file:
+	with open(fileName, "wb") as file:
 		file.write(content)
 	
 	socket.close()
