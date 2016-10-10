@@ -11,7 +11,6 @@ def downloadrqt(host,path,GETHEAD):
 def downloadpls(HOST,PORT,PATH):
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
-	print "connected again"
 	header = downloadrqt(HOST,PATH,True)
 	clientSocket.send(header)
 	text = "" 
