@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#! /usr/bin/python
 
 import socket as soc
 from urlparse import urlparse
@@ -14,7 +14,7 @@ def downloadrqt(host,path,GETHEAD):
 	else : getorhead = "HEAD "
 	return getorhead + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
-def network(HOST,PORT,PATH):
+def getlength(HOST,PORT,PATH):
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
 	print "connected"
@@ -31,25 +31,34 @@ def network(HOST,PORT,PATH):
 				break
 			cont_len+=i
 	cont_len=int(cont_len)
-	print cont_len
 	clientSocket.close()
+	return cont_len
 
-	return text
+def downloadpls(HOST,PORT,PATH):
+	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+	clientSocket.connect((HOST,PORT))
+	print "connected again"
+	header = downloadrqt(HOST,PATH,True)
+	clientSocket.send(header)
+	text = ""
+	res = clientSocket.recv(1024)
+	cont_len=""
+	while len(res) != 0:
+		text += res
+		res = clientSocket.recv(1024)
+	lis= text.split("\r\n\r\n")
+	return lis[1]
 
-
-def getPort(url):
-	work = urlparse(url)
-	return work.port # well, gets the port number
-
-
-#if len(sys.argv) ==4 and sys.argv[1]== "-o" or len(sys.argv) == 4 and sys.argv[-3]== "-c":
-
-parseSTR = urlparse(urr)
-netloc = parseSTR.netloc
-if "https" in netloc:
-	print "Sorry we don't support https :/"	
-path = parseSTR.path
-text=network(netloc, PORT, path)
-with open("/home/sanchit/Desktop"+ "sanchit.jpg", "wb") as file:
-	file.write(text)
+if len(sys.argv) ==4 and sys.argv[1]== "-o" or len(sys.argv) == 6 and sys.argv[-3]== "-c":
+	parseSTR = urlparse(sys.argv[-1])
+	fileName=sys.argv[2]
+	netloc = parseSTR.hostname
+	if "https" in netloc:
+		print "Sorry we don't support https :/"	
+		sys.exit
+	path = parseSTR.path
+	length=getlength(netloc, PORT, path)
+	text=downloadpls(netloc,PORT,path)
+	with open("/home/sanchit/Desktop/"+ fileName, "wb+") as file:
+		file.write(text)
 	
