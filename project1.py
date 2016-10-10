@@ -46,10 +46,11 @@ def downloadrqt(host,path,GETHEAD):
 	return getorhead + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
 def continuerqt(host,path,date,lastStop):
-	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "If-Range: " + date + "Range: " + "bytes=" + lastStop + "-" + "\r\n\r\n"
+	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "If-Range: " + date + "Range: " + "bytes=" \
+	+ lastStop + "-" + "\r\n\r\n"
 
 
-if len(sys.argv) ==4 and sys.argv[1]= "-o" or len(sys.argv) ==4 and sys.argv[-3]= "-c":
+#if len(sys.argv) ==4 and sys.argv[1]= "-o" or len(sys.argv) ==4 and sys.argv[-3]= "-c":
 	URL = sys.argv[-1]
 	urled = hostpath(URL)
 	HOST = urled[0]
@@ -62,7 +63,7 @@ if len(sys.argv) ==4 and sys.argv[1]= "-o" or len(sys.argv) ==4 and sys.argv[-3]
 	if PORT=="" or PORT ==0:
 		PORT = 80
 	
-	connection = connect()
+	connection = connect(HOST,PATH)
 	header = downloadrqt(HOST,PATH,True)
 	connection.send(header)
 	buffer=network()
