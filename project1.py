@@ -5,9 +5,6 @@ from urlparse import urlparse
 import argparse 
 import sys
 
-urr = "http://www.muic.mahidol.ac.th/eng/wp-content/uploads/2016/10/TEA-banner-960x330-resized-1.jpg"
-PORT=80 
-
 def downloadrqt(host,path,GETHEAD):
 	if GETHEAD:
 		getorhead = "GET "
@@ -50,12 +47,15 @@ def downloadpls(HOST,PORT,PATH):
 	return lis[1]
 
 if len(sys.argv) ==4 and sys.argv[1]== "-o" or len(sys.argv) == 6 and sys.argv[-3]== "-c":
+	if "https" in sys.argv[-1]:
+		print "Sorry we don't support https :/"	
+		sys.exit(2)
 	parseSTR = urlparse(sys.argv[-1])
+	if parseSTR.port == None: PORT = 80
+	else: PORT = parseSTR.port
 	fileName=sys.argv[2]
 	netloc = parseSTR.hostname
-	if "https" in netloc:
-		print "Sorry we don't support https :/"	
-		sys.exit
+	print netloc
 	path = parseSTR.path
 	length=getlength(netloc, PORT, path)
 	text=downloadpls(netloc,PORT,path)
