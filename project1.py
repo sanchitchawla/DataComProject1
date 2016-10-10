@@ -1,75 +1,55 @@
 #!/usr/bin/env python
 
-import socket as s
+import socket as soc
 from urlparse import urlparse
 import argparse 
 import sys
 
-def network():
+urr = "http://www.muic.mahidol.ac.th/eng/wp-content/uploads/2016/10/TEA-banner-960x330-resized-1.jpg"
+PORT=80 
+
+def downloadrqt(host,path,GETHEAD):
+	if GETHEAD:
+		getorhead = "GET "
+	else : getorhead = "HEAD "
+	return getorhead + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
+
+def network(HOST,PORT,PATH):
+	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+	clientSocket.connect((HOST,PORT))
+	print "connected"
+	header = downloadrqt(HOST,PATH,False)
+	clientSocket.send(header)
 	text = ""
-	res = connection.recv(1024)
+	res = clientSocket.recv(1024)
+	cont_len=""
 	while len(res) != 0:
 		text += res
-		res = connection.recv(1024)
+		res = clientSocket.recv(1024)
+		for i in text[text.find("Content-Length") + 16:]:
+			if i =="\r":
+				break
+			cont_len+=i
+	cont_len=int(cont_len)
+	print cont_len
+	clientSocket.close()
+
 	return text
 
-def connect(HOST,PORT):
-	try:
-		clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
-		clientSocket.connect((HOST, PORT))
-		connection = clientSocket
-		return connection
-	except Exception, e:
-		"Something is wrong, Windows Style"
-	else:
-		print "Can't connect"
-
-
-def hostpath(url):
-	work = urlparse(url)
-	ls = []
-	ls.append(work.host) # at index 0 we append the host
-	path= work.path
-	if work.query!="":
-		path = path + "?" + query
-	ls.append(path) # at index 1 we append the path + query if there is one
-	return ls  #return a list of [host,path]
 
 def getPort(url):
 	work = urlparse(url)
 	return work.port # well, gets the port number
 
-def downloadrqt(host,path,GETHEAD):
-	if GET:
-		getorhead = "GET"
-	else : getorhead = "HEAD"
-	return getorhead + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
-def continuerqt(host,path,date,lastStop):
-	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "If-Range: " + date + "Range: " + "bytes=" \
-	+ lastStop + "-" + "\r\n\r\n"
+#if len(sys.argv) ==4 and sys.argv[1]== "-o" or len(sys.argv) == 4 and sys.argv[-3]== "-c":
 
-
-#if len(sys.argv) ==4 and sys.argv[1]= "-o" or len(sys.argv) ==4 and sys.argv[-3]= "-c":
-	URL = sys.argv[-1]
-	urled = hostpath(URL)
-	HOST = urled[0]
-	PATH = urled[1]
-	if urled.scheme =="https":
-		print "Sorry we don't support https, yet"
-		return 0
-	fileName = sys.argv[2]
-	PORT= getPort(URL)
-	if PORT=="" or PORT ==0:
-		PORT = 80
+parseSTR = urlparse(urr)
+netloc = parseSTR.netloc
+if "https" in netloc:
+	print "Sorry we don't support https :/"	
+path = parseSTR.path
+text=network(netloc, PORT, path)
+with open("/home/sanchit/Desktop"+ "sanchit.jpg", "wb") as file:
+	file.write(text)
 	
-	connection = connect(HOST,PATH)
-	header = downloadrqt(HOST,PATH,True)
-	connection.send(header)
-	buffer=network()
-	wtv,content = buffer.split('\r\n\r\n')
-
-	with open(fileName, "wb") as file:
-		file.write(content)
-	
-	socket.close()
