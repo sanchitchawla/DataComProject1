@@ -59,6 +59,9 @@ if len(sys.argv) ==4 and sys.argv[1]= "-o" or len(sys.argv) ==4 and sys.argv[-3]
 		return 0
 	fileName = sys.argv[2]
 	PORT= getPort(URL)
+	if PORT=="" or PORT ==0:
+		PORT = 80
+	
 	connection = connect()
 	header = downloadrqt(HOST,PATH,True)
 	connection.send(header)
