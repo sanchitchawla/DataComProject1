@@ -2,7 +2,6 @@
 
 import socket as soc
 from urlparse import urlparse
-import argparse 
 import sys
 
 def downloadrqt(host,path,GETHEAD):
@@ -11,26 +10,27 @@ def downloadrqt(host,path,GETHEAD):
 def downloadpls(HOST,PORT,PATH):
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
-	print "connected again"
 	header = downloadrqt(HOST,PATH,True)
 	clientSocket.send(header)
 	text = "" 
-	res = clientSocket.recv(1024)
+	res = clientSocket.recv(8096)
 	cont_len=[]
 	while len(res) != 0:
 		text += res
-		res = clientSocket.recv(1024)
+		res = clientSocket.recv(8096)
+
 	lis= text.split("\r\n\r\n")
 	cont_len= lis[0].split("\r\n")
 	final= cont_len[-3].split(": ")
 	return lis[1], final[1]
 
-if len(sys.argv) ==4 and sys.argv[1]== "-o" or len(sys.argv) == 6 and sys.argv[-3]== "-c":
+if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	if "https" in sys.argv[-1]:
 		print "Sorry we don't support https :/"	
 		sys.exit(2)
 	elif "http" not in sys.argv[-1]:
 		print "is your http correct?"
+		sys.exit(2)
 	parseSTR = urlparse(sys.argv[-1])
 	if parseSTR.port == None: PORT = 80
 	else: PORT = parseSTR.port
