@@ -4,13 +4,13 @@ import socket as soc
 from urlparse import urlparse
 import sys
 
-def downloadrqt(host,path,GETHEAD):
+def downloadrqt(host,path):
 	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
 def downloadpls(HOST,PORT,PATH):
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
-	header = downloadrqt(HOST,PATH,True)
+	header = downloadrqt(HOST,PATH)
 	clientSocket.send(header)
 	text = "" 
 	res = clientSocket.recv(8096)
