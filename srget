@@ -17,8 +17,6 @@ def myreceive(sock,MSGLEN):
                 raise RuntimeError("socket connection broken")
             chunks.append(chunk)
             bytes_recd +=len(chunk)
-            print (bytes_recd/float(MSGLEN))*100
-            print bytes_recd,MSGLEN
         return ''.join(chunks)
 
 def downloadpls(HOST,PORT,PATH):
@@ -37,16 +35,16 @@ def downloadpls(HOST,PORT,PATH):
 		if "\r\n\r\n" in text:
 			header,body=text.split("\r\n\r\n")
 			eachhead=header.split("\r\n")
+			if not "200" in eachhead[0]:
+				print "Sorry! We caught an error!"
+				sys.exit(2)
 			for each in eachhead[1:]:
 				hm=each.split(": ")
 				mydic[hm[0]]= hm[1]
 			length= int(mydic["Content-Length"])
-			print length
 			body+= myreceive(clientSocket,long(length)- long(len(body)))
-			print "done!"
 			clientSocket.close()
 			break
-	print "Download Completed"
 	return body
 
 if len(sys.argv) ==4 and sys.argv[1]== "-o":
@@ -62,6 +60,6 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	if PATH=="" or PATH== None:
 		PATH="/"
 	text=downloadpls(HOST,PORT,PATH)
-	with open("/home/sanchit/Desktop/"+ fileName, "wb+") as file:
+	with open(fileName, "wb+") as file:
 		file.write(text)
 	
