@@ -19,6 +19,17 @@ def myreceive(sock,MSGLEN):
             bytes_recd +=len(chunk)
         return ''.join(chunks)
 
+def getmeeverything(text):
+	header,body=text.split("\r\n\r\n")
+	eachhead=header.split("\r\n")
+		if not "200" in eachhead[0]:
+			print "Sorry! We caught an error!"
+			sys.exit(2)
+		for each in eachhead[1:]:
+			hm=each.split(": ")
+			mydic[hm[0]]= hm[1]
+	return mydic
+
 def downloadpls(HOST,PORT,PATH):
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
@@ -26,21 +37,11 @@ def downloadpls(HOST,PORT,PATH):
 	clientSocket.send(header)
 	text = "" 
 	cont_len=[]
-	got=False
-	mydic={}
-	headbyte=0
 	while True:
 		res = clientSocket.recv(1024)
 		text += res
 		if "\r\n\r\n" in text:
-			header,body=text.split("\r\n\r\n")
-			eachhead=header.split("\r\n")
-			if not "200" in eachhead[0]:
-				print "Sorry! We caught an error!"
-				sys.exit(2)
-			for each in eachhead[1:]:
-				hm=each.split(": ")
-				mydic[hm[0]]= hm[1]
+			mydic = getmeeverything(text)
 			length= int(mydic["Content-Length"])
 			body+= myreceive(clientSocket,long(length)- long(len(body)))
 			clientSocket.close()
