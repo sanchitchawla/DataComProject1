@@ -3,21 +3,29 @@
 import socket as soc
 from urlparse import urlparse
 import sys
+import os.path
 
 def downloadrqt(host,path):
 	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
+def HEADrqt(host,path):
+	return "HEAD " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
+
+
+def conteenew(host,path,byte):
+	return ("GET {n} HTTP/1.1\r\n"+ "Host: {s}\r\n"+"Connection: close\r\n"+"Range: {b}\r\n").format(n=path,s=host,b=byte)
+
 def myreceive(sock,MSGLEN):
-        chunks = []
-        bytes_recd = 0
-        count=0
-        while bytes_recd < MSGLEN:
-            chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
-            if chunk == '':
-                raise RuntimeError("socket connection broken")
-            chunks.append(chunk)
-            bytes_recd +=len(chunk)
-        return ''.join(chunks)
+    chunks = []
+    bytes_recd = 0
+    count=0
+    while bytes_recd < MSGLEN:
+        chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
+        if chunk == '':
+            raise RuntimeError("socket connection broken")
+        chunks.append(chunk)
+        bytes_recd +=len(chunk)
+    return ''.join(chunks)
 
 def getmeeverything(text):
 	mydic={}
@@ -38,6 +46,7 @@ def downloadpls(HOST,PORT,PATH):
 	clientSocket.send(header)
 	text = "" 
 	cont_len=[]
+	
 	while True:
 		res = clientSocket.recv(1024)	
 		text += res
@@ -49,6 +58,15 @@ def downloadpls(HOST,PORT,PATH):
 			break
 	return body
 
+def resumedownload(HOST,PORT,PATH):
+	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+	clientSocket.connect((HOST,PORT))
+	#header = downloadrqt(HOST,PATH)	
+	#clientSocket.send(header)
+
+	return 0
+
+
 if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	if "https" in sys.argv[-1]:
 		print "Sorry we don't support https"	
@@ -57,11 +75,15 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	if parseSTR.port == None: PORT = 80
 	else: PORT = parseSTR.port
 	fileName=sys.argv[2]
+	Name,extension= fileName.split(".")
 	HOST = parseSTR.hostname
 	PATH = parseSTR.path
 	if PATH=="" or PATH== None:
 		PATH="/"
-	text=downloadpls(HOST,PORT,PATH)
+	if os.path.isfile(fileName):
+		text=resumedownload(HOST,PORT,PATH)
+	else:	
+		text=downloadpls(HOST,PORT,PATH)
 	with open(fileName, "wb+") as file:
 		file.write(text)
 	
