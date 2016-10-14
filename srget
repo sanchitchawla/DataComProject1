@@ -14,27 +14,27 @@ def HEADrqt(host,path):
 def conteenew(host,path,byte):
 	return ("GET {n} HTTP/1.1\r\n"+ "Host: {s}\r\n"+"Connection: close\r\n"+"Range: {b}\r\n").format(n=path,s=host,b=byte)
  		
-def myreceive(sock,MSGLEN):
-    chunks = []
-    bytes_recd = 0
-    count=0
-
-
-    while bytes_recd < MSGLEN:
-        chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
-        if chunk == '':
-            raise RuntimeError("socket connection broken")
-        chunks.append(chunk)
-        bytes_recd +=len(chunk)
-
-
-    return ''.join(chunks)
+def myreceive(sock,MSGLEN,name,bytes_recd):
+	file = open(name,"wb+")
+	chunks = []
+	while bytes_recd < MSGLEN:
+		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
+		if chunk == '':
+			raise RuntimeError("socket connection broken")
+		chunks.append(chunk)
+		bytes_recd +=len(chunk)
+		file.write(chunk)
+		#print bytes_recd, MSGLEN
+	file.close()
+	print "file closed"
 
 def getmeeverything(text):
 	mydic={}
-	header,body=text.split("\r\n\r\n")
+	i=text.find("\r\n\r\n")
+	header = text[:i]
+	body=text[i+4:]
+	#header,body=text.split("\r\n\r\n")
 	eachhead=header.split("\r\n")
-
 
 	if not "200" in eachhead[0]:
 		print "Sorry! We caught an error!"
@@ -43,31 +43,27 @@ def getmeeverything(text):
 	for each in eachhead[1:]:
 		hm=each.split(": ")
 		mydic[hm[0]]= hm[1]
-
+	print len(body)
+	#print body
 	return mydic,body
 
 def downloadpls(HOST,PORT,PATH,name):
-	file= open(name)
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
 	header = downloadrqt(HOST,PATH)
 	clientSocket.send(header)
 	text = "" 
-
-
 	while True:
 		res = clientSocket.recv(1024)	
 		text += res
 		if "\r\n\r\n" in text:
 			mydic ,body= getmeeverything(text)
+			file = open(name,"wb+")
+			file.write(body)
 			length= int(mydic["Content-Length"])
-
-			body+= myreceive(clientSocket,long(length)- long(len(body)))
+			myreceive(clientSocket,long(length)- long(len(body)),name,long(len(body)))
 			clientSocket.close()
 			break
-
-
-	return body
 
 def resumedownload(HOST,PORT,PATH,name):
 	
@@ -75,7 +71,7 @@ def resumedownload(HOST,PORT,PATH,name):
 	clientSocket.connect((HOST,PORT))
 	header = HEADrqt(HOST,PATH)	
 	clientSocket.send(header)
-
+	text=""
 
 	while True:
 		res = clientSocket.recv(1024)	
@@ -96,7 +92,7 @@ def resumedownload(HOST,PORT,PATH,name):
 
 
 	if os.path.isfile(oldFile):
-        lst =[]
+		lst =[]
         string = oldFile
         lst = string.split("\r\n")
         prevEtag = lst[-2]
@@ -118,7 +114,7 @@ def resumedownload(HOST,PORT,PATH,name):
 				elif not res:
 					break
 				clientSocket.close()
-		except Exception as e:
+		except KeyboardInterrupt  as e:
 			print e
 			
 	writeout.close()
@@ -136,9 +132,11 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	PATH = parseSTR.path
 	if PATH=="" or PATH== None:
 		PATH="/"
-	if !os.path.isfile(fileName):
-		text=downloadpls(HOST,PORT,PATH,fileName)	
+	if os.path.isfile(fileName):
+		resumedownload(HOST,PORT,PATH,fileName)
+	else:
+		downloadpls(HOST,PORT,PATH,fileName)
 		
-	with open(fileName, "wb+") as file:
-		file.write(text)
+	#with open(fileName, "wb+") as file:
+	#	file.write(text)
 	
