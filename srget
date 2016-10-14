@@ -3,7 +3,7 @@
 import socket as soc
 from urlparse import urlparse
 import sys
-import os.path
+import os
 
 def downloadrqt(host,path):
 	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
@@ -11,60 +11,117 @@ def downloadrqt(host,path):
 def HEADrqt(host,path):
 	return "HEAD " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
-
 def conteenew(host,path,byte):
 	return ("GET {n} HTTP/1.1\r\n"+ "Host: {s}\r\n"+"Connection: close\r\n"+"Range: {b}\r\n").format(n=path,s=host,b=byte)
-
+ 		
 def myreceive(sock,MSGLEN):
     chunks = []
     bytes_recd = 0
     count=0
+
+
     while bytes_recd < MSGLEN:
         chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
         if chunk == '':
             raise RuntimeError("socket connection broken")
         chunks.append(chunk)
         bytes_recd +=len(chunk)
+
+
     return ''.join(chunks)
 
 def getmeeverything(text):
 	mydic={}
 	header,body=text.split("\r\n\r\n")
 	eachhead=header.split("\r\n")
+
+
 	if not "200" in eachhead[0]:
 		print "Sorry! We caught an error!"
 		sys.exit(2)
+
 	for each in eachhead[1:]:
 		hm=each.split(": ")
 		mydic[hm[0]]= hm[1]
+
 	return mydic,body
 
-def downloadpls(HOST,PORT,PATH):
+def downloadpls(HOST,PORT,PATH,name):
+	file= open(name)
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
 	header = downloadrqt(HOST,PATH)
 	clientSocket.send(header)
 	text = "" 
-	cont_len=[]
-	
+
+
 	while True:
 		res = clientSocket.recv(1024)	
 		text += res
 		if "\r\n\r\n" in text:
 			mydic ,body= getmeeverything(text)
 			length= int(mydic["Content-Length"])
+
 			body+= myreceive(clientSocket,long(length)- long(len(body)))
 			clientSocket.close()
 			break
+
+
 	return body
 
-def resumedownload(HOST,PORT,PATH):
+def resumedownload(HOST,PORT,PATH,name):
+	
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
-	#header = downloadrqt(HOST,PATH)	
-	#clientSocket.send(header)
+	header = HEADrqt(HOST,PATH)	
+	clientSocket.send(header)
 
-	return 0
+
+	while True:
+		res = clientSocket.recv(1024)	
+		text += res
+		if "\r\n\r\n" in text:
+			mydic ,body= getmeeverything(text)
+			length= int(mydic["Content-Length"])
+			Etag= mydic["ETag:"]
+			Last= mydic["Last-Modified"]
+			clientSocket.close()
+			break
+	
+	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+	clientSocket.connect((HOST,PORT))
+	header = conteenew(HOST,PATH,length)	
+	clientSocket.send(header)
+	oldFile = name+"\r\n"+ Etag+"\r\n"+Last
+
+
+	if os.path.isfile(oldFile):
+        lst =[]
+        string = oldFile
+        lst = string.split("\r\n")
+        prevEtag = lst[-2]
+        prevLast =lst[-1]
+        with open(oldFile,"r") as fffile:
+			byte = fffile.readlines()
+
+	writeout= open(name,"a+")
+
+	if prevLast== Last or Etag==prevEtag:
+		try:
+			while True:
+				hmm = name +"incom"
+				res = clientSocket.recv(1024)
+				writeout.write(res)
+				if len(res)==0:
+					directory = os.getcwd()
+					os.remove(directory+"/" + hmm)
+				elif not res:
+					break
+				clientSocket.close()
+		except Exception as e:
+			print e
+			
+	writeout.close()
 
 
 if len(sys.argv) ==4 and sys.argv[1]== "-o":
@@ -75,15 +132,13 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	if parseSTR.port == None: PORT = 80
 	else: PORT = parseSTR.port
 	fileName=sys.argv[2]
-	Name,extension= fileName.split(".")
 	HOST = parseSTR.hostname
 	PATH = parseSTR.path
 	if PATH=="" or PATH== None:
 		PATH="/"
-	if os.path.isfile(fileName):
-		text=resumedownload(HOST,PORT,PATH)
-	else:	
-		text=downloadpls(HOST,PORT,PATH)
+	if !os.path.isfile(fileName):
+		text=downloadpls(HOST,PORT,PATH,fileName)	
+		
 	with open(fileName, "wb+") as file:
 		file.write(text)
 	
