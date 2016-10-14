@@ -69,6 +69,7 @@ def downloadpls(HOST,PORT,PATH,name):
 				if "\r\n\r\n" in text:
 					mydic ,body= getmeeverything(text,h)
 					file.write(body)
+					h.write(str(len(text))+ "\r\n")
 					length= int(mydic["Content-Length"])
 					myreceive(file, clientSocket, long(length), name, long(len(body)))
 					clientSocket.close()
@@ -84,7 +85,7 @@ def resumedownload(HOST,PORT,PATH,name):
 	header = HEADrqt(HOST,PATH)	
 	clientSocket.send(header)
 	text=""
-
+	oldFile = fname+"sanchit"
 	while True:
 		res = clientSocket.recv(1024)	
 		text += res
@@ -95,12 +96,7 @@ def resumedownload(HOST,PORT,PATH,name):
 			Last= mydic["Last-Modified"]
 			clientSocket.close()
 			break
-	
-	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
-	clientSocket.connect((HOST,PORT))
-	header = conteenew(HOST,PATH,length)	
-	clientSocket.send(header)
-	oldFile = fname+"sanchit"
+
 
 	if os.path.isfile(oldFile):
 		lst = []
@@ -108,26 +104,35 @@ def resumedownload(HOST,PORT,PATH,name):
         lst = string.split("\r\n")
         with open("meta.txt","r") as fffile:
 			byte = fffile.readlines()
-			hm,prevEtag= byte[-2].split(": ")
-			hmm,prevLast= byte[-4].split(": ")
-			print prevLast, Last
-			print prevEtag, Etag
+			hm,prevEtag= byte[-3].split(": ")
+			hmm,prevLast= byte[-5].split(": ")
+			sizz= byte[-1].strip()
+	
+	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+	clientSocket.connect((HOST,PORT))
+	header = conteenew(HOST,PATH,sizz)
+	clientSocket.send(header)
+	print header	
 
 	writeout= open(name,"a+")
 
-	if prevLast== Last or Etag==prevEtag:
-		print "YES YES SEE ME PLS PLS PLS"
+	if prevLast.strip()== Last or Etag.strip()==prevEtag:
 		try:
 			while True:
-				hmm = fname +"sanchit"
+				hmm = fname +"sanchit" 
+				#print hmm	
 				res = clientSocket.recv(1024)
-				writeout.write(res)
-				if len(res)==0:
+				print "hey2"
+				text+= res
+				lenn=len(text)
+				
+				writeout.write(text)
+				if len(res)==0:	
+					print "hey"
 					directory = os.getcwd()
 					os.remove(directory+"/" + hmm)
-				elif not res:
+				elif lenn + sizz < length :
 					break
-				clientSocket.close()
 		except KeyboardInterrupt  as e:
 			print e
 			
