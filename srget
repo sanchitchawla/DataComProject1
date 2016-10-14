@@ -11,15 +11,18 @@ def downloadrqt(host,path):
 def HEADrqt(host,path):
 	return "HEAD " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
 
-def conteenew(host,path,byte):
-	return ("GET {n} HTTP/1.1\r\n"+ "Host: {s}\r\n"+"Connection: close\r\n"+"Range: {b}\r\n").format(n=path,s=host,b=byte)
+def conteenew(host,path,byte,contentlength):
+	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Range: bytes=" +\
+	 byte + "-" +contentlength + "\r\n\r\n"
  		
-def myreceive(file, sock,MSGLEN,name,bytes_recd):
+def myreceive(h,file, sock,MSGLEN,name,bytes_recd):
 	chunks = []
 	while bytes_recd < MSGLEN:
 		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
 		bytes_recd += len(chunk)
-		file.write(chunk)	
+		file.write(chunk)
+		h.write(str(bytes_recd)+ "\r\n")
+
 
 def getmeeverything(text,h):
 	mydic={}
@@ -34,11 +37,12 @@ def getmeeverything(text,h):
 
 	for each in eachhead[1:]:
 		hm=each.split(": ")
-		h.write(each+"\r\n")
+		if "Content-Length" in each or "Last-Modified" in each or "ETag" in each:
+			h.write(each+"\r\n")
 		mydic[hm[0]]= hm[1]
 	return mydic,body
 
-def getmeeverythingg(text):
+def getmeeverythingforresume(text):
 	mydic={}
 	i=text.find("\r\n\r\n")
 	header = text[:i]
@@ -71,7 +75,7 @@ def downloadpls(HOST,PORT,PATH,name):
 					file.write(body)
 					h.write(str(len(text))+ "\r\n")
 					length= int(mydic["Content-Length"])
-					myreceive(file, clientSocket, long(length), name, long(len(body)))
+					myreceive(h,file, clientSocket, long(length), name, long(len(body)))
 					clientSocket.close()
 					break	
 			os.rename(fname+"sanchit", fname + "." + extension)
@@ -90,13 +94,16 @@ def resumedownload(HOST,PORT,PATH,name):
 		res = clientSocket.recv(1024)	
 		text += res
 		if "\r\n\r\n" in text:
-			mydic ,body= getmeeverythingg(text)
+			mydic ,body= getmeeverythingforresume(text)
+			try:
+				Etag= mydic["ETag"]
+				Last= mydic["Last-Modified"]
+			except Exception as e:
+				print "Server Doesn't support resuming"
+				sys.exit()
 			length= int(mydic["Content-Length"])
-			Etag= mydic["ETag"]
-			Last= mydic["Last-Modified"]
 			clientSocket.close()
 			break
-
 
 	if os.path.isfile(oldFile):
 		lst = []
@@ -104,39 +111,54 @@ def resumedownload(HOST,PORT,PATH,name):
         lst = string.split("\r\n")
         with open("meta.txt","r") as fffile:
 			byte = fffile.readlines()
-			hm,prevEtag= byte[-3].split(": ")
-			hmm,prevLast= byte[-5].split(": ")
+			hm,prevEtag= byte[1].split(": ")
+			hmmmm,prevLast= byte[0].split(": ")
+			hmmm,prevLength = byte[2].split(": ")
 			sizz= byte[-1].strip()
 	
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
-	header = conteenew(HOST,PATH,sizz)
+	header = conteenew(HOST,PATH,sizz,str(length))
 	clientSocket.send(header)
-	print header	
-
+	print header
 	writeout= open(name,"a+")
 
-	if prevLast.strip()== Last or Etag.strip()==prevEtag:
+	if prevLast.strip()== Last and Etag.strip()==prevEtag:
 		try:
 			while True:
-				hmm = fname +"sanchit" 
-				#print hmm	
+				tempname = fname +"sanchit" 	
+				print "hey"
 				res = clientSocket.recv(1024)
 				print "hey2"
 				text+= res
 				lenn=len(text)
-				
 				writeout.write(text)
-				if len(res)==0:	
-					print "hey"
-					directory = os.getcwd()
-					os.remove(directory+"/" + hmm)
-				elif lenn + sizz < length :
+				if lenn + int(sizz) < length :
+					with open(writeout,"r") as newman:
+						f_old = open(oldaf,"a+")
+						for line in newman:
+							f_old.write(line)
+						f_old.close()
+					#directory = os.getcwd()
+					os.remove(tempname)
+					os.remove("meta.txt")
+					print "hey3"
 					break
 		except KeyboardInterrupt  as e:
-			print e
-			
+			print "Oh man I hate your keyboard"
+	else:
+		downloadpls(HOST,PORT,PATH,name)
+
 	writeout.close()
+
+def append_file(original,new):
+    f_old = open(original,"a+")
+    f_new = open(new,"r")
+    for line in f_new:
+        f_old.write(line)
+    f_old.close()
+    f_new.close()
+    os.remove(new) 
 
 
 if len(sys.argv) ==4 and sys.argv[1]== "-o":
@@ -156,7 +178,4 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 		resumedownload(HOST,PORT,PATH,fileName)
 	else:
 		downloadpls(HOST,PORT,PATH,fileName)
-		
-	#with open(fileName, "wb+") as file:
-	#	file.write(text)
 	
