@@ -29,6 +29,7 @@ def myreceiveresume(file, sock,MSGLEN,bytes_recd):
 		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
 		bytes_recd += len(chunk)
 		file.write(chunk)
+		#print bytes_recd, MSGLEN
 
 
 def getmeeverything(text,h):
@@ -55,6 +56,7 @@ def getmeeverythingforresume(text):
 	i=text.find("\r\n\r\n")
 	header = text[:i]
 	body=text[i+4:]
+	lenofnewhead= len(header)
 	eachhead=header.split("\r\n")
 
 	if not "200" in eachhead[0]:
@@ -64,7 +66,7 @@ def getmeeverythingforresume(text):
 	for each in eachhead[1:]:
 		hm=each.split(": ")
 		mydic[hm[0]]= hm[1]
-	return mydic,body
+	return mydic,body,lenofnewhead,header
 
 def downloadpls(HOST,PORT,PATH,name):
 	fname,extension= name.split(".")
@@ -104,12 +106,10 @@ def resumedownload(HOST,PORT,PATH,name):
 		res = clientSocket.recv(1024)	
 		text += res
 		if "\r\n\r\n" in text:
-			mydic ,body= getmeeverythingforresume(text)
+			mydic ,body,bs,bs2= getmeeverythingforresume(text)
 			try:
 				Etag= mydic["ETag"]
-				print Etag,"Etag"
 				Last= mydic["Last-Modified"]
-				print Last
 			except Exception as e:
 				print "Server Doesn't support resuming, sorry."
 				sys.exit()
@@ -134,9 +134,11 @@ def resumedownload(HOST,PORT,PATH,name):
 	clientSocket.connect((HOST,PORT))
 	host = soc.gethostbyname(HOST)
 	hehe=os.path.getsize(oldFile)  
-	header = conteenew(host,PATH,hehe)
+	sendin=int(hehe) - int(headerlen)
+	header = conteenew(host,PATH,sendin)
 	clientSocket.send(header)
-	with open(fname+"sanchit","a+") as writeout:
+	print header
+	with open(fname+"sanchit","a") as writeout:
 		if prevLast.strip()== Last.strip() or Etag.strip()==prevEtag.strip():
 			print "in the if"
 			try:
@@ -144,9 +146,10 @@ def resumedownload(HOST,PORT,PATH,name):
 					res = clientSocket.recv(1024)	
 					text += res
 					if "\r\n\r\n" in text:
-						mydic ,body= getmeeverythingforresume(text)
-						writeout.write(body)
-						myreceiveresume(writeout, clientSocket, long(length)- long(headerlen),hehe)
+						mydic ,sechead,lenofnewhead,header= getmeeverythingforresume(text)
+						meh,mehreal= sechead.split("\r\n\r\n")
+						writeout.write(mehreal)
+						myreceiveresume(writeout, clientSocket, long(length)- len(mehreal)- len(sechead),hehe + len(mehreal))
 						clientSocket.close()
 						break	
 				os.rename(fname+"sanchit", name)
