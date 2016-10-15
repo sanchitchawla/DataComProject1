@@ -149,7 +149,7 @@ def resumedownload(HOST,PORT,PATH,name):
 						mydic ,sechead,lenofnewhead,header= getmeeverythingforresume(text)
 						meh,mehreal= sechead.split("\r\n\r\n")
 						writeout.write(mehreal)
-						myreceiveresume(writeout, clientSocket, long(length)- len(mehreal)- len(sechead),hehe + len(mehreal))
+						myreceiveresume(writeout, clientSocket, long(length)- len(mehreal),hehe + len(mehreal))
 						clientSocket.close()
 						break	
 				os.rename(fname+"sanchit", name)
