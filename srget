@@ -29,7 +29,6 @@ def myreceiveresume(file, sock,MSGLEN,bytes_recd):
 		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
 		bytes_recd += len(chunk)
 		file.write(chunk)
-		#print bytes_recd, MSGLEN
 
 
 def getmeeverything(text,h):
@@ -70,7 +69,7 @@ def getmeeverythingforresume(text):
 
 def downloadpls(HOST,PORT,PATH,name):
 	fname,extension= name.split(".")
-	with open(fname+ "sanchit","wb+") as file:
+	with open(fname+ "sanchit","ab+") as file:
 		with open("meta.txt","wb+") as h:
 			clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 			clientSocket.connect((HOST,PORT))
@@ -123,8 +122,9 @@ def resumedownload(HOST,PORT,PATH,name):
         lst = string.split("\r\n")
         with open("meta.txt","r") as fffile:
 			byte = fffile.readlines()
-			hm,prevEtag= byte[2].split(": ")
-			hmmmm,prevLast= byte[3].split(": ")
+
+			hm,prevEtag= byte[3].split(": ")
+			hmmmm,prevLast= byte[2].split(": ")
 			hmmm,prevLength = byte[1].split(": ")
 			headerlen=byte[0].strip()
 			sizz= byte[-1].strip()
@@ -133,13 +133,12 @@ def resumedownload(HOST,PORT,PATH,name):
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
 	clientSocket.connect((HOST,PORT))
 	host = soc.gethostbyname(HOST)
-	hehe=os.path.getsize(oldFile)  
-	sendin=int(hehe) - int(headerlen)
+	filesize=os.path.getsize(oldFile)  
+	sendin=int(filesize) # - int(headerlen)
 	header = conteenew(host,PATH,sendin)
 	clientSocket.send(header)
-	print header
-	with open(fname+"sanchit","a") as writeout:
-		if prevLast.strip()== Last.strip() or Etag.strip()==prevEtag.strip():
+	with open(fname+"sanchit","ab+") as writeout:
+		if prevLast.strip()== Etag.strip() or Etag.strip()==prevEtag.strip():
 			print "in the if"
 			try:
 				while True:
@@ -147,14 +146,13 @@ def resumedownload(HOST,PORT,PATH,name):
 					text += res
 					if "\r\n\r\n" in text:
 						mydic ,sechead,lenofnewhead,header= getmeeverythingforresume(text)
-						meh,mehreal= sechead.split("\r\n\r\n")
+						meh,mehreal= sechead.split("\r\n\r\n") 
 						writeout.write(mehreal)
-						myreceiveresume(writeout, clientSocket, long(length)- len(mehreal),hehe + len(mehreal))
+						myreceiveresume(writeout, clientSocket, long(length),filesize+len(mehreal))
 						clientSocket.close()
 						break	
 				os.rename(fname+"sanchit", name)
 				os.remove("meta.txt")
-					
 			except KeyboardInterrupt  as e:
 				sys.exit()
 		else:
@@ -189,8 +187,6 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 # 		self.PATH = PATH
 # 		self.fname,self.extension= fileName.split(".")
 # 		self.name = fileName
-
-
 
 
 # 	def downloadpls(self):
