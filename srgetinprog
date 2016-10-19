@@ -1,0 +1,180 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import sys
+import socket as soc 
+from urlparse import urlparse
+import os
+
+class downloadpls():
+
+    def __init__(self):
+        self.prevLast = ""
+        self.prevConlen = 0
+        self.prevEtag = ""
+        self.sanchit = "sanchit"
+        self.HOST = ""
+        self.PORT = 80
+        self.filename = ""
+        self.socket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+        self.headersend = ""
+        self.resumesend = ""
+        self.header = ""
+        self.body = ""
+        self.downloadedsofar = 0
+        self.PATH = ""
+        self.lastMod = ""
+        self.conlength = 0
+        self.ETag = ""
+        
+
+    def sendheader(self):
+        self.headersend = "GET " + self.connect_path + " HTTP/1.1\r\n" + "Host: " + self.HOST + "\r\n\r\n"
+        self.socket.send(self.headersend)
+
+    def sendresumeheader(self):
+        self.resumesend = "GET " + self.connect_path + " HTTP/1.1\r\n" + "Host: " + self.HOST +\
+         "\r\nRange: bytes=" + str(self.downloadedsofar) + "-" + "\r\n\r\n"
+        self.socket.send(self.resumesend)
+
+    def condition(self):
+        with open("meta.txt", 'r') as meta:
+            read = meta.read()
+            self.downloadedsofar = os.path.getsize(self.filename + self.sanchit)
+            prev = self.extractdata(read)
+            self.prevConlen = prev[0]
+            self.prevLast = prev[1]
+            self.prevEtag = prev[2]
+        return self.prevConlen == self.conlength and self.prevLast == self.lastMod and self.prevEtag == self.ETag
+
+
+    def extractdata(self, header):
+        haha = header.split("\r\n")
+        for each in haha:
+            if "Content-Length" in each:
+                idc, prevCon = each.split(" ")
+                each.split(" ")
+            if "Last-Modified" in each:
+                idcc, prevLast = each.split(": ")
+            if "ETag" in each:
+                idccc, prevEtag = each.split(" ")
+        return prevCon,prevLast,prevEtag
+
+    def download(self):
+        text = ""
+        while True:
+            recv = self.socket.recv(8096)
+            if not recv: break
+            text += recv
+
+            if "\r\n\r\n" in text:
+                print "Regular Download"
+                self.header, self.body = text.split("\r\n\r\n")
+                prevstuff = self.extractdata(self.header)
+                self.conlength = int(prevstuff[0])
+                self.lastMod = prevstuff[1]
+                self.ETag = prevstuff[2]
+                info = '{}: {}\r\n{}: {}\r\n{}: {}\r\n'.format('Content-Length', self.conlength,
+                 'Last-Modified', self.lastMod, 'ETag', self.ETag)
+                break
+
+        with open(self.filename + self.sanchit, 'wb+') as file, open("meta.txt", 'w') as metafile:
+
+            file.write(self.body)
+            size = len(self.body)
+            metafile.write(info)
+            while size < self.conlength:
+
+                recv = self.socket.recv(8096)
+                size += len(recv)
+                file.write(recv)
+                metafile.write('{}\r\n'.format(size))
+
+
+                percent = "{0:.2f}".format(
+                (size / float(self.conlength)) * 100.0)
+                fill = int(
+                    round(50 * (size / float(self.conlength))))
+                bar = '█' * fill + '-' * (50-fill)
+                sys.stdout.write('\rProgress |%s| - %s%s ' % (bar, percent, '%'))
+                sys.stdout.flush()
+
+
+        os.renames(self.filename + self.sanchit, self.filename)
+        print "Complete"
+        os.remove("meta.txt")
+        self.socket.close()
+        sys.exit()
+
+    def resume(self):
+        text = ""
+        while True:
+            recv = self.socket.recv(8096)
+            if not recv: break
+            text += recv
+
+            if "\r\n\r\n" in text:
+                print "Resuming."
+
+                self.header, self.body = text.split("\r\n\r\n")
+                prevstuff = self.extractdata(self.header)
+                self.prevConlen = int(prevstuff[0])
+                self.prevLast = prevstuff[1]
+                self.prevEtag = prevstuff[2]
+                break
+
+        with open(self.filename + self.sanchit, 'ab+') as file:
+            downloaded = self.downloadedsofar
+            while downloaded < self.downloadedsofar + int(self.prevConlen):
+                recv = self.socket.recv(8096)
+                downloaded += len(recv)
+                file.write(recv)
+
+
+                percent = "{0:.2f}".format(
+                (downloaded / float(self.downloadedsofar + int(self.prevConlen))) * 100.0)
+                fill = int(
+                    round(50 * (downloaded / float(self.downloadedsofar + int(self.prevConlen)))))
+                bar = '█' * fill + '-' * (50-fill)
+                sys.stdout.write('\rProgress |%s| - %s%s ' % (bar, percent, '%'))
+                sys.stdout.flush()
+
+
+        os.renames(self.filename + self.sanchit, self.filename)
+        os.remove("meta.txt")
+        print "Done Downloading."
+        self.socket.close()
+        sys.exit()
+
+    def main(self, sis):
+        self.filename = sis[2]
+        url = sis[-1] 
+        urled = urlparse(url)
+        self.connect_path = urled.path
+        self.HOST = urled.hostname
+        if urled.port != None:
+            self.PORT = int(urled.port)
+        else: self.PORT = 80
+
+        self.socket.connect((self.HOST, self.PORT))
+        if os.path.isfile(self.filename + self.sanchit):
+
+            if not self.condition():
+
+                self.sendresumeheader()
+                self.resume()
+
+            else:
+
+                self.sendheader()
+                self.download()
+        else:
+            
+            self.sendheader()
+            self.download()
+
+
+if __name__ == '__main__':
+    sis = sys.argv
+    start = downloadpls()
+start.main(sis)

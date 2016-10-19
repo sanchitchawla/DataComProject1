@@ -4,6 +4,9 @@ import socket as soc
 from urlparse import urlparse
 import sys
 import os
+import threading
+import time
+
 
 def downloadrqt(host,path):
 	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
@@ -127,7 +130,6 @@ def resumedownload(HOST,PORT,PATH,name):
 			hmmmm,prevLast= byte[2].split(": ")
 			hmmm,prevLength = byte[1].split(": ")
 			headerlen=byte[0].strip()
-			sizz= byte[-1].strip()
 
 	
 	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
@@ -146,18 +148,18 @@ def resumedownload(HOST,PORT,PATH,name):
 					text += res
 					if "\r\n\r\n" in text:
 						mydic ,sechead,lenofnewhead,header= getmeeverythingforresume(text)
-						meh,mehreal= sechead.split("\r\n\r\n") 
-						writeout.write(mehreal)
-						myreceiveresume(writeout, clientSocket, long(length),filesize+len(mehreal))
+						meh,body= sechead.split("\r\n\r\n") 
+						writeout.write(body)
+						myreceiveresume(writeout, clientSocket, long(length),filesize+len(body))
 						clientSocket.close()
 						break	
 				os.rename(fname+"sanchit", name)
 				os.remove("meta.txt")
 			except KeyboardInterrupt  as e:
+				print "Found a KeyboardInterrupt, Sneaky ayy"
 				sys.exit()
 		else:
 			downloadpls(HOST,PORT,PATH,name)
-
 
 if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	if "https" in sys.argv[-1]:
@@ -177,36 +179,3 @@ if len(sys.argv) ==4 and sys.argv[1]== "-o":
 	else:
 		downloadpls(HOST,PORT,PATH,fileName)
 	
-# class Downloader(object):
-# 	"""Trying to replicate my work in class form"""
-# 	def __init__(self,HOST,PORT,PATH,fileName):
-		
-# 		super(ClassName, self).__init__()
-# 		self.HOST= HOST
-# 		self.PORT = PORT
-# 		self.PATH = PATH
-# 		self.fname,self.extension= fileName.split(".")
-# 		self.name = fileName
-
-
-# 	def downloadpls(self):
-# 		with open(fname+ "sanchit","wb+") as file:
-# 			with open("meta.txt","wb+") as h:
-# 				clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
-# 				clientSocket.connect((HOST,PORT))
-# 				header = downloadrqt(HOST,PATH)
-# 				clientSocket.send(header)
-# 				text = "" 
-# 				while True:
-# 					res = clientSocket.recv(1024)	
-# 					text += res
-# 					if "\r\n\r\n" in text:
-# 						mydic ,body= getmeeverything(text,h)
-# 						file.write(body)
-# 						h.write(str(len(text))+ "\r\n")
-# 						length= int(mydic["Content-Length"])
-# 						myreceive(h,file, clientSocket, long(length), name, long(len(body)))
-# 						clientSocket.close()
-# 						break	
-# 				os.rename(fname+"sanchit", fname + "." + extension)
-# 				os.remove("meta.txt")
