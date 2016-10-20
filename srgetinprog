@@ -51,19 +51,23 @@ class downloadpls():
     def extractdata(self, header):
         haha = header.split("\r\n")
         for each in haha:
-            if "Content-Length" in each:
-                idc, prevCon = each.split(" ")
-                each.split(" ")
-            if "Last-Modified" in each:
-                idcc, prevLast = each.split(": ")
-            if "ETag" in each:
-                idccc, prevEtag = each.split(" ")
+            try:
+                if "Content-Length" in each:
+                    idc, prevCon = each.split(" ")
+                if "Last-Modified" in each:
+                    idcc, prevLast = each.split(": ")
+                if "ETag" in each:
+                    idccc, prevEtag = each.split(" ")
+            except Exception as e:
+                print "Server doesn't support resuming."
+                sys.exit()
+            
         return prevCon,prevLast,prevEtag
 
     def download(self):
         text = ""
         while True:
-            recv = self.socket.recv(8096)
+            recv = self.socket.recv(2048)
             if not recv: break
             text += recv
 
@@ -85,7 +89,7 @@ class downloadpls():
             metafile.write(info)
             while size < self.conlength:
 
-                recv = self.socket.recv(8096)
+                recv = self.socket.recv(2048)
                 size += len(recv)
                 file.write(recv)
                 metafile.write('{}\r\n'.format(size))
@@ -109,7 +113,7 @@ class downloadpls():
     def resume(self):
         text = ""
         while True:
-            recv = self.socket.recv(8096)
+            recv = self.socket.recv(2048)
             if not recv: break
             text += recv
 
@@ -126,7 +130,7 @@ class downloadpls():
         with open(self.filename + self.sanchit, 'ab+') as file:
             downloaded = self.downloadedsofar
             while downloaded < self.downloadedsofar + int(self.prevConlen):
-                recv = self.socket.recv(8096)
+                recv = self.socket.recv(2048)
                 downloaded += len(recv)
                 file.write(recv)
 
@@ -153,7 +157,7 @@ class downloadpls():
         self.connect_path = urled.path
         self.HOST = urled.hostname
         if urled.port != None:
-            self.PORT = int(urled.port)
+            self.PORT = urled.port
         else: self.PORT = 80
 
         self.socket.connect((self.HOST, self.PORT))
