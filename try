@@ -77,16 +77,42 @@ def connectme(HOST,PORT,PATH):
     mydic = dicfunction(response)
     return mydic
 
+def condition(Etag,conlength,lastMod):
+    with open("meta.txt", 'r') as meta:
+        read = meta.read()
+        prev = extractdata(read)
+        prevConlen = prev[0]
+        prevLast = prev[1]
+        prevEtag = prev[2]
+    return prevConlen == conlength and prevLast == lastMod and prevEtag == ETag
+
+
+def extractdata(header):
+    haha = header.split("\r\n")
+    prevCon,prevLast,prevEtag=" ", " ", " "
+    for each in haha:
+        try:
+            if "Content-Length" in each:
+                idc, prevCon = each.split(" ")
+                print idc, prevCon
+            if "Last-Modified" in each:
+                idcc, prevLast = each.split(": ")
+            if "ETag" in each:
+                idccc, prevEtag = each.split(" ")
+        except Exception as e:
+            print "Server doesn't support resuming."
+            sys.exit()
+    return prevCon,prevLast,prevEtag
+
 
 class HTTPClient(asyncore.dispatcher):
     ## Size of the buffer for each recv
     RECV_CHUNK_SIZE = 2048
  
-    def __init__(self, url):
+    def __init__(self, url,filename,range=0, ContentLength=0, endbytes=0,resume=False):
         asyncore.dispatcher.__init__(self)
         self.HOST, self.PATH, self.PORT = parse_url(url)
 
-        self.sanchit = "sanchit"
         # Create a logger
         self.logger = logging.getLogger(url)
  
@@ -96,7 +122,7 @@ class HTTPClient(asyncore.dispatcher):
 
  
         # Create recv buffer and send buffer
-        (self.recvbuf, self.sendbuf) = (StringIO(), "")
+        #(self.recvbuf, self.sendbuf) = (StringIO(), "")
  
         # Make an initial request & deliver it
 
@@ -106,7 +132,6 @@ class HTTPClient(asyncore.dispatcher):
         self.prevConlen = 0
         self.prevEtag = ""
         
-        self.socket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
         self.headersend = ""
         self.resumesend = ""
         self.header = ""
@@ -189,43 +214,12 @@ class HTTPClient(asyncore.dispatcher):
     def sendresumeheader(self):
         self.resumesend = "GET " + self.connect_path + " HTTP/1.1\r\n" + "Host: " + self.HOST +\
          "\r\nRange: bytes=" + str(self.downloadedsofar) + "-" + "\r\n\r\n"
-        self.write(self.resumesend)
-
-    def condition(self):
-        with open("meta.txt", 'r') as meta:
-            read = meta.read()
-            self.downloadedsofar = os.path.getsize(self.filename + self.sanchit)
-            prev = self.extractdata(read)
-            self.prevConlen = prev[0]
-            self.prevLast = prev[1]
-            self.prevEtag = prev[2]
-        return self.prevConlen == self.conlength and self.prevLast == self.lastMod and self.prevEtag == self.ETag
-
-
-    def extractdata(self, header):
-        haha = header.split("\r\n")
-        prevCon,prevLast,prevEtag=" ", " ", " "
-        for each in haha:
-            try:
-                if "Content-Length" in each:
-                    idc, prevCon = each.split(" ")
-                    print idc, prevCon
-                if "Last-Modified" in each:
-                    idcc, prevLast = each.split(": ")
-                if "ETag" in each:
-                    idccc, prevEtag = each.split(" ")
-            except Exception as e:
-                print "Server doesn't support resuming."
-                sys.exit()
-        return prevCon,prevLast,prevEtag
-
-    def main(self, sis):
-        self.filename = sis[2]
-        self.url = sis[-1] 
+        self.write(self.resumesend) 
  
 if __name__ == "__main__":
     filename = sys.argv[2]
     url = sys.argv[-1]
+    num= sys.argv[4]
     urled= urlparse(url)
     HOST = urled.hostname
     PATH = urled.path
@@ -235,18 +229,24 @@ if __name__ == "__main__":
     if PATH == None or PATH == "":
         PATH = "/"
     mydic= connectme(HOST,PORT,PATH)
-    print mydic
-    
-    # if os.path.isfile(filename + "sanchit"):
-    #         if not condition():
+    Etag = mydic["ETag"]
+    LastMod= mydic["Last-Modified"]
+    ContentLength= int(mydic["Content-Length"])
+    print Etag,LastMod,ContentLength
+    if os.path.isfile(filename + "sanchit"):
+        downloadedsofar = os.path.getsize(filename + "sanchit")
+        if condition(Etag,ContentLength,LastMod):
+            #resume
+        else:
+            print "Files are changed."
+            sys.exit(2)
 
-    #             self.sendresumeheader()
-
-    #         else:
-
-    #             self.sendheader()
-
-    # else:
-
-    #     self.sendheader()
-    # asyncore.loop()
+    else: 
+        async=[]
+        for i in range(num):
+            async+= HTTPClient(url,str(i)+ filename, range=(i*ContentLength)/num,
+                     ContentLength= ContentLength,endbytes= ((i+1)* ContentLength)/num)
+        async+=HTTPClient(url,str(num-1)+filename, range= ((num-1)*ContentLength)/ num,
+                    ContentLength=ContentLength, endbytes= ContentLength)
+        asyncore.loop()
+        
