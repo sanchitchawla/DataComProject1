@@ -1,181 +1,490 @@
 #! /usr/bin/python
+# -*- coding: utf-8 -*-
 
-import socket as soc
-from urlparse import urlparse
+
 import sys
+import socket as soc 
 import os
-import threading
-import time
+import asyncore
+import logging
+import shutil
+from urlparse import urlparse
+from cStringIO import StringIO
 
 
-def downloadrqt(host,path):
-	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
+class downloadpls():
 
-def HEADrqt(host,path):
-	return "HEAD " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n"
+    def __init__(self):
+        self.prevLast = ""
+        self.prevConlen = 0
+        self.prevEtag = ""
+        self.sanchit = "sanchit"
+        self.HOST = ""
+        self.PORT = 80
+        self.filename = ""
+        self.socket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+        self.headersend = ""
+        self.resumesend = ""
+        self.header = ""
+        self.body = ""
+        self.downloadedsofar = 0
+        self.PATH = ""
+        self.lastMod = ""
+        self.conlength = 0
+        self.ETag = ""
+        self.url=""
+        self.urled=""
+        self.thread=0
+    
 
-def conteenew(host,path,my):
-	return "GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" +\
-	"Connection: close" + "\r\n"+ "Range: bytes=" + str(my) + "-" "\r\n\r\n"
- 		
-def myreceive(h,file, sock,MSGLEN,name,bytes_recd):
-	chunks = []
-	while bytes_recd < MSGLEN:
-		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
-		bytes_recd += len(chunk)
-		file.write(chunk)
-		h.write(str(bytes_recd)+ "\r\n")
+    def redirectheader(self):
+        self.headersend = "HEAD " + self.PATH + " HTTP/1.1\r\n" + "Host: " + self.HOST + "\r\n\r\n"
+        self.socket.send(self.headersend)
 
-def myreceiveresume(file, sock,MSGLEN,bytes_recd):
-	chunks = []
-	while bytes_recd < MSGLEN:
-		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
-		bytes_recd += len(chunk)
-		file.write(chunk)
+    def sendheader(self):
+        self.headersend = "GET " + self.PATH + " HTTP/1.1\r\n" + "Host: " + self.HOST + "\r\n\r\n"
+        self.socket.send(self.headersend)
+
+    def sendresumeheader(self):
+        self.resumesend = "GET " + self.PATH + " HTTP/1.1\r\n" + "Host: " + self.HOST +\
+         "\r\nRange: bytes=" + str(self.downloadedsofar) + "-" + "\r\n\r\n"
+        self.socket.send(self.resumesend)
+
+    def condition(self):
+        with open("meta.txt", 'r') as meta:
+            read = meta.read()
+            self.downloadedsofar = os.path.getsize(self.filename + self.sanchit)
+            prev = self.extractdata(read)
+            self.prevConlen = prev[0]
+            self.prevLast = prev[1]
+            self.prevEtag = prev[2]
+        return self.prevConlen == self.conlength and self.prevLast == self.lastMod and self.prevEtag == self.ETag
 
 
-def getmeeverything(text,h):
-	mydic={}
-	i=text.find("\r\n\r\n")
-	header = text[:i]
-	h.write(str(len(header))+"\r\n")
-	body=text[i+4:]
-	eachhead=header.split("\r\n")
-	lenofhead= len(header)
-	if not "200" in eachhead[0]:
-		print "Sorry! We caught an error!"
-		sys.exit(2)
+    def extractdata(self, header):
+        haha = header.split("\r\n")
+        prevCon,prevLast,prevEtag=" ", " ", " "
+        for each in haha:
+            try:
+                if "Content-Length" in each:
+                    idc, prevCon = each.split(" ")
+                if "Last-Modified" in each:
+                    idcc, prevLast = each.split(": ")
+                if "ETag" in each:
+                    idccc, prevEtag = each.split(" ")
+            except Exception as e:
+                print "Server doesn't support resuming."
+                sys.exit()
+        return prevCon,prevLast,prevEtag
 
-	for each in eachhead[1:]:
-		hm=each.split(": ")
-		if "Content-Length" in each or "Last-Modified" in each or "ETag" in each :
-			h.write(each+"\r\n")
-		mydic[hm[0]]= hm[1]
-	return mydic,body,lenofhead
+    def download(self):
+        text = ""
+        while True:
+            recv = self.socket.recv(2048)
+            if not recv: break
+            text += recv
 
-def getmeeverythingforresume(text):
-	mydic={}
-	i=text.find("\r\n\r\n")
-	header = text[:i]
-	body=text[i+4:]
-	lenofnewhead= len(header)
-	eachhead=header.split("\r\n")
+            if "\r\n\r\n" in text:
+                print "Regular Download"
+                self.header, self.body = text.split("\r\n\r\n")
+                prevstuff = self.extractdata(self.header)
+                self.conlength = int(prevstuff[0])
+                self.lastMod = prevstuff[1]
+                self.ETag = prevstuff[2]
+                info = '{}: {}\r\n{}: {}\r\n{}: {}\r\n'.format('Content-Length', self.conlength,
+                 'Last-Modified', self.lastMod, 'ETag', self.ETag)
+                break
 
-	if not "200" in eachhead[0]:
-		print "Sorry! We caught an error!"
-		sys.exit(2)
+        with open(self.filename + self.sanchit, 'wb+') as file, open("meta.txt", 'w') as metafile:
 
-	for each in eachhead[1:]:
-		hm=each.split(": ")
-		mydic[hm[0]]= hm[1]
-	return mydic,body,lenofnewhead,header
+            file.write(self.body)
+            size = len(self.body)
+            metafile.write(info)
+            while size < self.conlength:
 
-def downloadpls(HOST,PORT,PATH,name):
-	fname,extension= name.split(".")
-	with open(fname+ "sanchit","ab+") as file:
-		with open("meta.txt","wb+") as h:
-			clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
-			clientSocket.connect((HOST,PORT))
-			header = downloadrqt(HOST,PATH)
-			clientSocket.send(header)
-			text = "" 
-			while True:
-				print "not resume"
-				res = clientSocket.recv(1024)	
-				text += res
-				if "\r\n\r\n" in text:
-					mydic ,body,lenofhead= getmeeverything(text,h)
-					file.write(body)
-					h.write(str(lenofhead))
-					h.write(str(len(text))+ "\r\n")
-					length= int(mydic["Content-Length"])
-					myreceive(h,file, clientSocket, long(length), name, long(len(body)))
-					clientSocket.close()
-					break	
-			os.rename(fname+"sanchit", fname + "." + extension)
-			os.remove("meta.txt")
-	
+                recv = self.socket.recv(2048)
+                size += len(recv)
+                file.write(recv)
 
-def resumedownload(HOST,PORT,PATH,name):
-	fname,extension= name.split(".")
-	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
-	clientSocket.connect((HOST,PORT))
-	header = HEADrqt(HOST,PATH)	
-	clientSocket.send(header)
-	text=""
-	oldFile = fname+"sanchit"
-	while True:
-		res = clientSocket.recv(1024)	
-		text += res
-		if "\r\n\r\n" in text:
-			mydic ,body,bs,bs2= getmeeverythingforresume(text)
-			try:
-				Etag= mydic["ETag"]
-				Last= mydic["Last-Modified"]
-			except Exception as e:
-				print "Server Doesn't support resuming, sorry."
-				sys.exit()
-			length= int(mydic["Content-Length"])
-			clientSocket.close()
-			break
+                percent = "{0:.2f}".format(
+                (size / float(self.conlength)) * 100.0)
+                fill = int(
+                    round(50 * (size / float(self.conlength))))
+                bar = '█' * fill + '-' * (50-fill)
+                sys.stdout.write('\rProgress |%s| - %s%s ' % (bar, percent, '%'))
+                sys.stdout.flush()
 
-	if os.path.isfile(oldFile):
-		lst = []
-        string = oldFile
-        lst = string.split("\r\n")
-        with open("meta.txt","r") as fffile:
-			byte = fffile.readlines()
 
-			hm,prevEtag= byte[3].split(": ")
-			hmmmm,prevLast= byte[2].split(": ")
-			hmmm,prevLength = byte[1].split(": ")
-			headerlen=byte[0].strip()
+        os.renames(self.filename + self.sanchit, self.filename)
+        print "\r\nComplete"
+        os.remove("meta.txt")
+        self.socket.close()
+        sys.exit()
 
-	
-	clientSocket = soc.socket(soc.AF_INET, soc.SOCK_STREAM)
-	clientSocket.connect((HOST,PORT))
-	host = soc.gethostbyname(HOST)
-	filesize=os.path.getsize(oldFile)  
-	sendin=int(filesize) # - int(headerlen)
-	header = conteenew(host,PATH,sendin)
-	clientSocket.send(header)
-	with open(fname+"sanchit","ab+") as writeout:
-		if prevLast.strip()== Etag.strip() or Etag.strip()==prevEtag.strip():
-			print "in the if"
-			try:
-				while True:
-					res = clientSocket.recv(1024)	
-					text += res
-					if "\r\n\r\n" in text:
-						mydic ,sechead,lenofnewhead,header= getmeeverythingforresume(text)
-						meh,body= sechead.split("\r\n\r\n") 
-						writeout.write(body)
-						myreceiveresume(writeout, clientSocket, long(length),filesize+len(body))
-						clientSocket.close()
-						break	
-				os.rename(fname+"sanchit", name)
-				os.remove("meta.txt")
-			except KeyboardInterrupt  as e:
-				print "Found a KeyboardInterrupt, Sneaky ayy"
-				sys.exit()
-		else:
-			downloadpls(HOST,PORT,PATH,name)
+    def resume(self):
+        text = ""
+        while True:
+            recv = self.socket.recv(2048)
+            if not recv: break
+            text += recv
 
-if len(sys.argv) ==4 and sys.argv[1]== "-o":
-	if "https" in sys.argv[-1]:
-		print "Sorry we don't support https"	
-		sys.exit(2)
-	parseSTR = urlparse(sys.argv[-1])
-	if parseSTR.port == None: PORT = 80
-	else: PORT = parseSTR.port
-	fileName=sys.argv[2]
-	fname,extension= fileName.split(".")
-	HOST = parseSTR.hostname
-	PATH = parseSTR.path
-	if PATH=="" or PATH== None:
-		PATH="/"
-	if os.path.isfile(fname+"sanchit"):
-		resumedownload(HOST,PORT,PATH,fileName)
-	else:
-		downloadpls(HOST,PORT,PATH,fileName)
-	
+            if "\r\n\r\n" in text:
+                print "Resuming."
+
+                self.header, self.body = text.split("\r\n\r\n")
+                prevstuff = self.extractdata(self.header)
+                self.conlength = int(prevstuff[0])
+                break
+
+        with open(self.filename + self.sanchit, 'a') as file:
+            downloaded = self.downloadedsofar
+            file.write(self.body)
+            downloaded+= len(self.body)
+            while downloaded < self.downloadedsofar + int(self.conlength):
+                
+                recv = self.socket.recv(2048)
+                downloaded += len(recv)
+                file.write(recv)    
+                if not recv: break
+
+                percent = "{0:.2f}".format(
+                (downloaded / float(self.downloadedsofar + int(self.conlength))) * 100.0)
+                fill = int(
+                    round(50 * (downloaded / float(self.downloadedsofar + int(self.conlength)))))
+                bar = '█' * fill + '-' * (50-fill)
+                sys.stdout.write('\rProgress |%s| - %s%s ' % (bar, percent, '%'))
+                sys.stdout.flush()
+
+
+        os.renames(self.filename + self.sanchit, self.filename)
+        os.remove("meta.txt")
+        print "\r\nDone Downloading."
+        self.socket.close()
+        sys.exit()
+
+    def main(self, sis):
+        self.filename = sis[2]
+        self.url = sis[-1]
+        if "https" in self.url:
+            print "We dont support HTTPS"
+            sys.exit() 
+        self.urled = urlparse(self.url)
+        self.PATH = self.urled.path
+        self.HOST = self.urled.hostname
+        if self.urled.port != None:
+            self.PORT = self.urled.port
+        else: self.PORT = 80
+        if self.PATH==None or self.PATH=="":
+            self.PATH="/"
+        self.socket.connect((self.HOST, self.PORT))
+        if os.path.isfile(self.filename + self.sanchit):
+
+            if not self.condition():
+
+                self.sendresumeheader()
+                self.resume()
+
+            else:
+
+                self.sendheader()
+                self.download()
+        else:
+            self.sendheader()
+            self.download()
+
+
+
+
+def parse_url(url):
+    DEFAULT_PORT=80
+    parsed_url = urlparse(url)
+    host, path, port = (parsed_url.hostname,
+                        parsed_url.path,
+                        parsed_url.port)
+    if not port:
+        port = DEFAULT_PORT
+    return (host, path, port)
+
+
+def recievestuff(socket):     
+    bytesread = 0     
+    packet = StringIO()     
+    while True:                     
+        chunk = socket.recv(2048)        
+        if chunk == '':break         
+        bytesread += len(chunk)                  
+        packet.write(chunk)     
+    return packet.getvalue()
+
+def downloadforme(filename,Etag,ContentLength,LastMod,num,url):
+    chunksize = 300000000
+    if ContentLength <= chunksize:
+        chunksize = ContentLength
+    fullchunks= ContentLength /chunksize
+    if os.path.isfile(filename + "sanchit"):
+            downloadedsofar = os.path.getsize(filename + "sanchit")
+            if condition(Etag,ContentLength,LastMod):
+                "Failed to resume concurrently."
+                sys.exit(2)
+            else:
+                print "Files are changed."
+                sys.exit(2)
+
+    else:
+        for i in range(fullchunks):                 
+            finalconcurrentfunction(ContentLength, filename,num,url,i*chunksize,(i+1)*chunksize)             
+        finalconcurrentfunction(ContentLength,filename, num,url,fullchunks*chunksize,ContentLength)
+
+
+def finalconcurrentfunction(ContentLength,filename,num,url,startbytes,endbytes):
+    endtoend= abs(startbytes - endbytes)
+    numof = endtoend / num
+    files= []
+    async=[]
+    for i in range(num):
+        async+= [HTTPClient(url,str(i)+ filename, range=startbytes,
+                 ContentLength= ContentLength,endbytes= startbytes + numof -1)]
+        startbytes+= numof
+        files+= [str(i)+ filename]    
+    if endbytes== ContentLength:
+        async+=[HTTPClient(url,str(num-1)+filename, range= startbytes,
+                ContentLength=ContentLength, endbytes= ContentLength)]
+    asyncore.loop()
+    with open(filename, 'a+b') as main:             
+        for file in files:                 
+            with open(file, 'rb') as temp:                     
+                shutil.copyfileobj(temp, main, (1024**2)*10)                 
+            os.remove(f)    
+
+
+def make_request(req_type, what, details, ver="1.1"):     
+    NL = "\r\n"     
+    req_line = "{verb} {w} HTTP/{v}".format(         
+        verb=req_type, w=what, v=ver)     
+    details = [         
+    "{name}: {v}".format(name=n, v=v) for (n, v) in details.iteritems()
+         ]     
+    detail_lines = NL.join(details)     
+    full_request = "".join([req_line, NL, detail_lines, NL, NL])     
+    return full_request
+
+
+def dicfunction(head):     
+    mydic = dict()     
+    header,body = head.split('\r\n\r\n')              
+    bytes_head = len(header) + 4     
+    eachhead = header.split('\r\n')     
+    if "3" in eachhead[0]:
+        print "redirect"
+        #should implement redirect     
+    elif "4" in eachhead[0]:
+        print "Encountered 4xx series error, check your url."
+        sys.exit(2)
+    for lines in eachhead[1:]:         
+        field, value = lines.split(': ')         
+        mydic[field] = value     
+    return mydic
+
+
+def connectme(HOST,PORT,PATH):
+    socket=soc.socket(soc.AF_INET, soc.SOCK_STREAM)
+    socket.connect((HOST,PORT)) 
+    request = make_request(         
+        'HEAD', PATH, {             
+        'Host': HOST + ':' + str(PORT),             
+        'Connection': 'close'}    
+        )
+    socket.send(request)
+    response = recievestuff(socket)
+    mydic = dicfunction(response)
+    return mydic
+
+
+def condition(Etag,conlength,lastMod):
+    with open("meta.txt", 'r') as meta:
+        read = meta.read()
+        prev = extractdata(read)
+        prevConlen = prev[0]
+        prevLast = prev[1]
+        prevEtag = prev[2]
+    return prevConlen == conlength and prevLast == lastMod and prevEtag == ETag
+
+
+def extractdata(header):
+    haha = header.split("\r\n")
+    prevCon,prevLast,prevEtag=" ", " ", " "
+    for each in haha:
+        try:
+            if "Content-Length" in each:
+                idc, prevCon = each.split(": ")
+                print idc, prevCon
+            if "Last-Modified" in each:
+                idcc, prevLast = each.split(": ")
+            if "ETag" in each:
+                idccc, prevEtag = each.split(": ")
+        except Exception as e:
+            print "Server doesn't support resuming."
+            sys.exit()
+    return prevCon,prevLast,prevEtag
+
+
+class HTTPClient(asyncore.dispatcher):
+    RECV_CHUNK_SIZE = 2048
+ 
+    def __init__(self, url,filename,range=0, ContentLength=0, endbytes=0,resume=False,concurrent=True):
+
+        asyncore.dispatcher.__init__(self)
+        self.HOST, self.PATH, self.PORT = parse_url(url)
+        self.logger = logging.getLogger(url)
+        self.filename= filename
+        self.range = range
+        self.endbytes = endbytes
+        self.reallen= ContentLength
+        self.mydic = dict()
+        self.header = ""
+        self.create_socket(soc.AF_INET, soc.SOCK_STREAM)
+        self.connect((self.HOST, self.PORT))
+        self.sanchit= "sanchit"
+        self.filename = filename
+        self.file = open(self.filename,"ab")
+        self.meta = open(self.filename+self.sanchit,"a+")
+
+        if concurrent:
+            request = make_request(
+            'GET', PATH, {                     
+            'Host': HOST + ':',                     
+            'Connection': 'close',                     
+            'Range':                         
+            'bytes=' + str(self.range) + '-' + str(self.endbytes)})    
+
+        else:             
+            request = make_request(                 
+                'GET', PATH, {                     
+                'Host': HOST + ':',                     
+                'Connection': 'close',                     
+                'Range': 'bytes=' + str(self.range) + '-'})
+
+    
+        # Create recv buffer and send buffer
+        (self.recvbuf, self.sendbuf) = (StringIO(), "")
+        print request
+        self.write(request)
+
+
+ 
+    def write(self, data):
+        """ Schedule to deliver data over the socket """
+        self.sendbuf += data
+ 
+    def handle_connect(self):
+        self.logger.debug("Connected")
+ 
+    def handle_close(self):
+        self.logger.debug("Disconnected")
+        os.rename(self.filename + "sanchit", self.filename)
+        print "Complete"
+        self.close()
+        sys.exit()
+ 
+    def writeable(self):
+        return len(self.sendbuf) > 0
+ 
+    def handle_write(self):
+        bytes_sent = self.send(self.sendbuf)
+        self.sendbuf = self.sendbuf[bytes_sent:]
+
+    def extractdata(self, header):
+        haha = header.split("\r\n")
+        prevCon,prevLast,prevEtag=" ", " ", " "
+        for each in haha:
+            try:
+                if "Content-Length" in each:
+                    idc, prevCon = each.split(" ")
+                if "Last-Modified" in each:
+                    idcc, prevLast = each.split(": ")
+                if "ETag" in each:
+                    idccc, prevEtag = each.split(" ")
+            except Exception as e:
+                print "Server doesn't support resuming."
+                sys.exit()
+        return prevCon,prevLast,prevEtag
+ 
+    def handle_read(self):
+        text = ""
+        recv = self.recv(2048)
+        #if not recv: return
+        text += recv
+        if "\r\n\r\n" in text:
+            self.header, self.body = text.split("\r\n\r\n")
+            prevstuff = self.extractdata(self.header)
+            self.conlength = int(prevstuff[0])
+            self.lastMod = prevstuff[1]
+            self.ETag = prevstuff[2]
+            info = '{}: {}\r\n{}: {}\r\n{}: {}\r\n'.format('Content-Length', self.conlength,
+             'Last-Modified', self.lastMod, 'ETag', self.ETag)
+
+        self.file.write(self.body)
+        size = len(self.body)
+        self.meta.write(info)
+        while size < self.conlength:
+
+            recv = self.socket.recv(2048)
+            size += len(recv)
+            file.write(recv)
+            metafile.write('{}\r\n'.format(size))
+            if not recv: return
+
+ 
+if __name__ == "__main__":
+    filename = sys.argv[3]
+    url = sys.argv[-1]
+    urled = urlparse(url)
+    HOST = urled.hostname
+    PATH = urled.path
+    PORT = urled.port
+
+    if PORT==None:
+        PORT=80
+    if PATH == None or PATH == "":
+        PATH = "/"
+
+
+    if sys.argv[2]=="-c":
+        try:
+            num= int(sys.argv[3])
+        except ValueError as e:
+            num=5
+            print "No Value Provided."
+            print "Using 5 as a Default Number of Connections"
+        
+        mydic= connectme(HOST,PORT,PATH)
+
+        try:
+            LastMod = mydic["Last-Modified"]
+        except ValueError as e:
+            print "No Last Modified"
+            print "Server doesn't support concurrent downloads."
+
+        try:
+            Etag = mydic["ETag"]
+            
+        except ValueError as e:
+            print "No Etag"
+            print "Server doesn't support concurrent downloads."
+
+        try:
+            ContentLength= int(mydic["Content-Length"])
+
+        except ValueError as e:
+            print "No Content length"
+            print "Server doesn't support concurrent downloads."
+
+
+        downloadforme(filename,Etag,ContentLength,LastMod,num,url)
+    elif len(sys.argv) == 4:
+        print "Normal Downloader Initiating."
+        sis = sys.argv
+        start = downloadpls()
+        start.main(sis)
+
+    

@@ -4,10 +4,8 @@
 import sys
 import socket as soc 
 import os
-import asyncore
 import logging
 from urlparse import urlparse
-from cStringIO import StringIO
 
 class downloadpls():
 
@@ -32,22 +30,23 @@ class downloadpls():
         #self.redirect= False
         self.url=""
         self.urled=""
-        self.h=[self]
+        self.thread=0
     
     # def checkredirect(self):
+    #     self.redirectheader()
     #     text = ""
     #     while True:
     #         recv = self.socket.recv(2048)
-    #         if not recv: break
     #         text += recv
 
     #         if "\r\n\r\n" in text:
-    #             print "Redirect Stuff"
-    #             self.header, bs = text.split("\r\n\r\n")
-    #             everything = self.header.split("\r\n")
+    #             self.rheader, bs = text.split("\r\n\r\n")
+    #             everything = self.rheader.split("\r\n")
     #             if "301" in everything[0] or "302" in everything[0]:
-    #                 #self.redirect=True
-    #                 idc,self.url = everything[3]
+    #                 self.redirect=True
+    #                 print everything[3]
+    #                 idc,self.url = everything[3].split(": ")
+    #                 print self.url
     #                 self.urled = urlparse(self.url)
     #                 self.HOST = self.urled.hostname
     #                 self.PATH = self.urled.path
@@ -56,15 +55,21 @@ class downloadpls():
     #                     self.PATH="/"
     #                 if self.PORT== None:
     #                     self.PORT=80
-    #             break
+    #                 break
+    #             else:
+    #                break
 
-    
+    def redirectheader(self):
+        self.headersend = "HEAD " + self.PATH + " HTTP/1.1\r\n" + "Host: " + self.HOST + "\r\n\r\n"
+        print self.headersend
+        self.socket.send(self.headersend)
+
     def sendheader(self):
-        self.headersend = "GET " + self.connect_path + " HTTP/1.1\r\n" + "Host: " + self.HOST + "\r\n\r\n"
+        self.headersend = "GET " + self.PATH + " HTTP/1.1\r\n" + "Host: " + self.HOST + "\r\n\r\n"
         self.socket.send(self.headersend)
 
     def sendresumeheader(self):
-        self.resumesend = "GET " + self.connect_path + " HTTP/1.1\r\n" + "Host: " + self.HOST +\
+        self.resumesend = "GET " + self.PATH + " HTTP/1.1\r\n" + "Host: " + self.HOST +\
          "\r\nRange: bytes=" + str(self.downloadedsofar) + "-" + "\r\n\r\n"
         print self.resumesend
         self.socket.send(self.resumesend)
@@ -151,7 +156,6 @@ class downloadpls():
                 print "Resuming."
 
                 self.header, self.body = text.split("\r\n\r\n")
-                print len(self.body)
                 prevstuff = self.extractdata(self.header)
                 self.conlength = int(prevstuff[0])
                 break
@@ -164,7 +168,7 @@ class downloadpls():
                 
                 recv = self.socket.recv(2048)
                 downloaded += len(recv)
-                file.write(recv)
+                file.write(recv)    
                 if not recv: break
 
                 percent = "{0:.2f}".format(
@@ -178,7 +182,7 @@ class downloadpls():
 
         os.renames(self.filename + self.sanchit, self.filename)
         os.remove("meta.txt")
-        print "Done Downloading."
+        print "\r\nDone Downloading."
         self.socket.close()
         sys.exit()
 
@@ -189,11 +193,13 @@ class downloadpls():
             print "We dont support HTTPS"
             sys.exit() 
         self.urled = urlparse(self.url)
-        self.connect_path = self.urled.path
+        self.PATH = self.urled.path
         self.HOST = self.urled.hostname
         if self.urled.port != None:
             self.PORT = self.urled.port
         else: self.PORT = 80
+        if self.PATH==None or self.PATH=="":
+            self.PATH="/"
         self.socket.connect((self.HOST, self.PORT))
         #self.checkredirect()
         if os.path.isfile(self.filename + self.sanchit):
@@ -208,7 +214,6 @@ class downloadpls():
                 self.sendheader()
                 self.download()
         else:
-            
             self.sendheader()
             self.download()
 
